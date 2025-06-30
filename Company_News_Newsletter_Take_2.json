@@ -1,0 +1,244 @@
+{
+  "name": "Company News Newsletter Take 2",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1LnQfeGcO80OMRpUJ0fmPaO6Fxeb45N58oh0Qlcz65j4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "a4bd4239-8856-418d-b6cb-a2381f475d97",
+      "name": "Read Company List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        140,
+        -60
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const companies = $input.all().map(item => item.json.company).filter(company => company && company.trim() !== '');\n\nreturn [{\n  json: {\n    companies: companies,\n    companyList: companies.join(', '),\n    totalCompanies: companies.length,\n    researchPrompt: `Create a comprehensive weekly newsletter for these ${companies.length} companies: ${companies.join(', ')}. Research ONLY news from the last 7 days for each company. Structure the newsletter with:\n\n1. Executive Summary: Brief overview of the most significant news across all companies\n2. Company-by-Company Analysis: Detailed section for each company with their specific news from the last week\n3. Market Trends: Any notable patterns or trends affecting multiple companies\n\nFor each company, focus on: financial results, product launches, partnerships, leadership changes, regulatory developments, and market-moving announcements. Only include news from the past week.`\n  }\n}];"
+      },
+      "id": "75741ec0-7968-47a5-a86a-fcbc78994684",
+      "name": "Process Company Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.researchPrompt }}",
+        "options": {
+          "systemMessage": "You are an expert business newsletter writer and financial analyst. Your task is to create professional, comprehensive weekly newsletters about company news.\n\nWhen researching companies, you must:\n1. Use the Perplexity Deep Research tool for each company individually\n2. Focus ONLY on news from the last 7 days\n3. Research financial results, product launches, partnerships, leadership changes, regulatory developments, and significant announcements\n4. Verify information accuracy and cite sources when possible\n\nNewsletter Structure:\n1. **Executive Summary** (2-3 paragraphs): Highlight the most significant developments across all companies\n2. **Company Analysis** (separate section for each company):\n   - Company name as header\n   - Recent developments (last 7 days only)\n   - Impact assessment\n   - Key metrics or data if available\n3. **Market Trends** (1-2 paragraphs): Cross-company trends or patterns\n4. **Outlook**: Brief forward-looking statements\n\nWriting Guidelines:\n- Professional, business-focused tone\n- Clear, concise language suitable for executives\n- Include specific dates when available\n- Quantify impacts where possible (revenue, percentage changes, etc.)\n- If no significant news found for a company in the past week, briefly note this\n\nAlways research each company thoroughly using Perplexity before compiling the newsletter.",
+          "maxIterations": 15,
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "16162663-e9d1-41a7-8ade-f47acd5645fc",
+      "name": "Newsletter AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        580,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokens": 4000,
+          "temperature": 0.3
+        }
+      },
+      "id": "a0f3ca8a-e5c4-41de-96b7-f2dff3795587",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        160
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "PS440yU5f7mAuNzs",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "sonar-deep-research",
+        "messages": {
+          "message": [
+            {
+              "content": "={{ $fromAI('query') }}"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "e3eaaf25-4b6b-4b85-abd6-81df4cc75bfc",
+      "name": "Perplexity Deep Research Tool",
+      "type": "n8n-nodes-base.perplexityTool",
+      "typeVersion": 1,
+      "position": [
+        800,
+        160
+      ],
+      "credentials": {
+        "perplexityApi": {
+          "id": "hEV6mKgaLHyww78g",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "stew@stewchisam.com",
+        "subject": "=Weekly Company Newsletter - {{ new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}",
+        "message": "={{ $json.output }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cfd3d3ee-4a80-455c-af0a-5a56fee81eef",
+      "name": "Send Newsletter Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        956,
+        -60
+      ],
+      "webhookId": "0fb5156d-dd8e-4cdf-bab5-92da60e816d5",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jdEXWlts2y8tDswV",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -60
+      ],
+      "id": "7dcd8d13-8ec3-4e10-96be-60dd187d93d5",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Read Company List": {
+      "main": [
+        [
+          {
+            "node": "Process Company Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Company Data": {
+      "main": [
+        [
+          {
+            "node": "Newsletter AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Newsletter AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Newsletter AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Deep Research Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Newsletter AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read Company List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dac7c4ee-1b9b-4027-b6fc-c7e9d43a4771",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "353d2917debb051ea882255d566a79d98b81a8f280631a900592248bb0c2a4e8"
+  },
+  "id": "INct5nqH1ueqIN3M",
+  "tags": [
+    {
+      "createdAt": "2025-06-25T23:39:29.750Z",
+      "updatedAt": "2025-06-25T23:39:29.750Z",
+      "id": "ozX5gqJNtO8n8L00",
+      "name": "Newsletter Automation"
+    }
+  ]
+}

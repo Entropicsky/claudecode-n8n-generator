@@ -1,0 +1,774 @@
+{
+  "name": "Company News Newsletter Enhanced v5",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Company News Newsletter Enhanced Workflow v5\n\n### Features:\n1. **Automatic Database Creation**:\n   - Creates new Research Database for each run\n   - Named with date and week number\n   - Automatically sets up column headers\n\n2. **Individual Company Research**:\n   - Quality research for each company\n   - Scales to 100+ companies\n\n3. **Proper Data Flow**:\n   - Uses Merge node to combine Executive Summary with original data\n   - No data loss through AI Agents\n\n4. **Professional Email Format**:\n   - Executive summary\n   - HTML table overview\n   - Full company details\n   - Google Sheets link attachment",
+        "height": 441.67502497041396,
+        "width": 396.96078431372515
+      },
+      "id": "29c0a0e5-bd35-4d9c-90cc-f36c9c0b5c9a",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "title": "=Company News Database - {{ DateTime.local().toFormat('yyyy-MM-dd') }} - Week {{ DateTime.local().toFormat('kkkk-WW') }}",
+        "sheetsUi": {
+          "sheetValues": [
+            {
+              "title": "Research"
+            },
+            {
+              "title": "Weekly Summary"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-research-database",
+      "name": "Create Research Database",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        140,
+        40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create header row for Research sheet - headers must be in first row\nreturn [{\n  json: {\n    Company: 'Company',\n    Summary: 'Summary',\n    Links: 'Links',\n    WeekNumber: 'WeekNumber',\n    ISOWeek: 'ISOWeek',\n    ResearchDate: 'ResearchDate',\n    EmailSent: 'EmailSent'\n  }\n}];"
+      },
+      "id": "prepare-headers",
+      "name": "Prepare Headers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Create Research Database').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Research",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "setup-research-headers",
+      "name": "Setup Research Headers",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        580,
+        40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1LnQfeGcO80OMRpUJ0fmPaO6Fxeb45N58oh0Qlcz65j4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "List",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-company-list",
+      "name": "Read Company List",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        800,
+        40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const companies = $input.all()\n  .map(item => item.json.company || item.json.Company) // Handle both cases\n  .filter(company => company && company.trim() !== '');\n\nconst currentWeek = DateTime.local().toFormat('kkkk-WW');\nconst weekNumber = DateTime.local().weekNumber;\n\nreturn companies.map(company => ({\n  json: {\n    company: company,\n    currentWeek: currentWeek,\n    weekNumber: weekNumber,\n    timestamp: new Date().toISOString(),\n    researchPrompt: `Research news for ${company} from the last 7 days ONLY. Focus on financial results, product launches, partnerships, leadership changes, regulatory developments, and significant announcements. Provide a comprehensive summary with specific dates and quantifiable impacts where available. If no significant news is found for the past week, note this briefly.`\n  }\n}));"
+      },
+      "id": "prepare-companies",
+      "name": "Prepare Companies for Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.researchPrompt }}",
+        "options": {
+          "systemMessage": "You are an expert business researcher specializing in company news analysis. Your task is to research and summarize recent news for a specific company.\n\nGuidelines:\n1. Use the Perplexity Research tool to find news from the LAST 7 DAYS ONLY\n2. Focus on: financial results, product launches, partnerships, leadership changes, regulatory developments, and significant announcements\n3. Include specific dates for all news items\n4. Quantify impacts where possible (revenue, percentage changes, etc.)\n5. If no significant news is found for the past week, state this clearly\n6. Provide links to sources when available\n\nOutput format:\n- Start with a brief 2-3 sentence overview\n- List key developments with dates\n- Include relevant metrics and data\n- End with links to primary sources",
+          "maxIterations": 10,
+          "returnIntermediateSteps": false
+        }
+      },
+      "id": "research-agent",
+      "name": "Company Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokens": 2000,
+          "temperature": 0.3
+        }
+      },
+      "id": "research-llm",
+      "name": "Research LLM",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1180,
+        260
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "PS440yU5f7mAuNzs",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "sonar-pro",
+        "messages": {
+          "message": [
+            {
+              "content": "={{ $fromAI('query') }}"
+            }
+          ]
+        },
+        "options": {},
+        "requestOptions": {}
+      },
+      "id": "perplexity-tool",
+      "name": "Perplexity Research Tool",
+      "type": "n8n-nodes-base.perplexityTool",
+      "typeVersion": 1,
+      "position": [
+        1460,
+        260
+      ],
+      "credentials": {
+        "perplexityApi": {
+          "id": "hEV6mKgaLHyww78g",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Format the research output for storage\n// Get the AI output\nconst summary = $input.item.json.output || 'No research output';\n\n// Get the input data that was passed to the AI Agent\nconst inputData = $input.item.json.input || {};\nconst company = inputData.company || 'Unknown Company';\nconst currentWeek = inputData.currentWeek || DateTime.local().toFormat('kkkk-WW');\nconst weekNumber = inputData.weekNumber || DateTime.local().weekNumber;\nconst timestamp = new Date().toISOString();\n\n// Extract links from the summary (basic regex)\nconst linkMatches = summary.match(/https?:\\/\\/[^\\s]+/g) || [];\nconst links = linkMatches.join('\\n');\n\n// Return the formatted data\nreturn {\n  json: {\n    Company: company,\n    Summary: summary,\n    Links: links,\n    WeekNumber: String(weekNumber),\n    ISOWeek: currentWeek,\n    ResearchDate: timestamp,\n    EmailSent: 'false'\n  }\n};"
+      },
+      "id": "format-research",
+      "name": "Format Research Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Create Research Database').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Research",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "store-research",
+      "name": "Store in Research Database",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1680,
+        40
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if all companies have been processed\nconst allProcessed = $items().every(item => item.json.EmailSent !== undefined);\n\nif (allProcessed) {\n  return {\n    json: {\n      triggerCompilation: true,\n      message: \"All companies researched, triggering weekly compilation\"\n    }\n  };\n}\n\nreturn {\n  json: {\n    triggerCompilation: false,\n    message: \"Research still in progress\"\n  }\n};"
+      },
+      "id": "check-completion",
+      "name": "Check Research Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Weekly Compilation Process\n\nThis section runs after all companies have been researched. It:\n1. Reads summaries from the newly created database\n2. Creates executive summary\n3. Populates Weekly Summary sheet\n4. Formats and sends email\n5. No need to mark as sent since each run has its own database",
+        "height": 275.25490196078424,
+        "width": 258.8235294117646
+      },
+      "id": "compilation-note",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Create Research Database').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Research",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-week-summaries",
+      "name": "Read Current Week Summaries",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        140,
+        600
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Since we have a fresh database for each run, no need to filter by week\nconst allItems = $input.all();\n// Filter out the header row and any empty rows\nconst weekSummaries = allItems.filter(item => \n  item.json.Company && \n  item.json.Company !== 'Company' && // Skip header row\n  item.json.Summary && \n  item.json.Summary !== 'Summary' // Skip header row\n);\n\nif (weekSummaries.length === 0) {\n  throw new Error('No summaries found in database');\n}\n\n// Prepare data for executive summary generation\nconst summariesText = weekSummaries.map(item => \n  `${item.json.Company}:\\n${item.json.Summary}`\n).join('\\n\\n---\\n\\n');\n\nconst companiesList = weekSummaries.map(item => item.json.Company).join(', ');\nconst currentWeek = DateTime.local().toFormat('kkkk-WW');\n\nreturn [{\n  json: {\n    weekSummaries: weekSummaries.map(item => item.json),\n    summariesText: summariesText,\n    companiesList: companiesList,\n    currentWeek: currentWeek,\n    summaryCount: weekSummaries.length\n  }\n}];"
+      },
+      "id": "filter-current-week",
+      "name": "Process Summaries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        360,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Based on the following company news summaries from this week, create a professional executive summary (2-3 paragraphs) highlighting the most significant developments across all companies. Focus on major trends, notable achievements, concerning developments, and market-moving news.\n\nCompanies covered: {{ $json.companiesList }}\n\nIndividual Summaries:\n{{ $json.summariesText }}",
+        "options": {
+          "systemMessage": "You are an expert business analyst creating executive summaries for C-suite executives. Your summaries should be:\n\n1. Concise yet comprehensive (2-3 paragraphs)\n2. Highlight cross-company trends and patterns\n3. Emphasize the most significant developments\n4. Written in professional business language\n5. Focus on actionable insights and strategic implications\n\nStructure:\n- First paragraph: Overall market trends and most significant news\n- Second paragraph: Notable company-specific developments\n- Third paragraph (if needed): Forward-looking implications",
+          "maxIterations": 5
+        }
+      },
+      "id": "executive-summary-agent",
+      "name": "Executive Summary Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        580,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.3
+        }
+      },
+      "id": "summary-llm",
+      "name": "Summary LLM",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        520,
+        820
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "PS440yU5f7mAuNzs",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-summary-data",
+      "name": "Merge Summary Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        800,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine executive summary with original data\nconst executiveSummary = $input.first().json.output || '';\nconst originalData = $input.last().json;\nconst weekSummaries = originalData.weekSummaries || [];\nconst currentWeek = originalData.currentWeek || DateTime.local().toFormat('kkkk-WW');\n\n// Get the spreadsheet info from the Create Research Database node\nconst spreadsheetId = $('Create Research Database').first().json.spreadsheetId;\nconst spreadsheetUrl = $('Create Research Database').first().json.spreadsheetUrl;\n\nreturn [{\n  json: {\n    spreadsheetId: spreadsheetId,\n    spreadsheetUrl: spreadsheetUrl,\n    executiveSummary: executiveSummary,\n    weekSummaries: weekSummaries,\n    currentWeek: currentWeek\n  }\n}];"
+      },
+      "id": "combine-data",
+      "name": "Combine Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store the spreadsheet info and prepare headers\nconst spreadsheetUrl = $input.item.json.spreadsheetUrl;\nconst spreadsheetId = $input.item.json.spreadsheetId;\nconst executiveSummary = $input.item.json.executiveSummary || '';\nconst weekSummaries = $input.item.json.weekSummaries || [];\n\n// Check if we have summaries\nif (!Array.isArray(weekSummaries) || weekSummaries.length === 0) {\n  console.error('weekSummaries:', weekSummaries);\n  console.error('Full input:', $input.item.json);\n  throw new Error('No week summaries found to format. Check Combine Data node.');\n}\n\n// Create header row\nconst headers = {\n  Company: 'Company',\n  'Key Developments': 'Key Developments',\n  Impact: 'Impact/Significance',\n  Links: 'Related Links',\n  'Research Date': 'Research Date'\n};\n\n// Format summaries for the sheet\nconst formattedSummaries = weekSummaries.map(summary => {\n  // Extract key points (first 2-3 sentences)\n  const summaryText = summary.Summary || '';\n  const sentences = summaryText.split('. ').slice(0, 3).join('. ');\n  \n  return {\n    Company: summary.Company || 'Unknown',\n    'Key Developments': sentences || 'No summary available',\n    Impact: 'See detailed summary',\n    Links: summary.Links || 'No links available',\n    'Research Date': summary.ResearchDate ? new Date(summary.ResearchDate).toLocaleDateString() : 'N/A'\n  };\n});\n\n// Add headers as first item\nconst dataWithHeaders = [headers, ...formattedSummaries];\n\nreturn dataWithHeaders.map(row => ({\n  json: {\n    ...row,\n    spreadsheetUrl: spreadsheetUrl,\n    spreadsheetId: spreadsheetId,\n    executiveSummary: executiveSummary,\n    weekSummaries: weekSummaries\n  }\n}));"
+      },
+      "id": "format-sheet-data",
+      "name": "Format Sheet Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Create Research Database').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Weekly Summary",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "populate-weekly-sheet",
+      "name": "Populate Weekly Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        1460,
+        600
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "srnrFBhxce3hn8Co",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the last item which has all the data\nconst allItems = $input.all();\nconst lastItem = allItems[allItems.length - 1];\nconst spreadsheetUrl = lastItem.json.spreadsheetUrl || '';\nconst executiveSummary = lastItem.json.executiveSummary || '';\nconst weekSummaries = lastItem.json.weekSummaries || [];\nconst currentWeek = DateTime.local().toFormat('MMMM d, yyyy');\n\n// Create HTML email with professional formatting\nconst htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n  <style>\n    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n    h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }\n    h2 { color: #34495e; margin-top: 30px; }\n    h3 { color: #7f8c8d; margin-top: 20px; }\n    .executive-summary { background-color: #ecf0f1; padding: 20px; border-radius: 5px; margin-bottom: 30px; }\n    table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n    th { background-color: #3498db; color: white; padding: 12px; text-align: left; }\n    td { padding: 12px; border-bottom: 1px solid #ddd; }\n    tr:hover { background-color: #f5f5f5; }\n    .company-detail { margin: 30px 0; padding: 20px; border-left: 4px solid #3498db; background-color: #f8f9fa; }\n    .spreadsheet-link { background-color: #2ecc71; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; }\n    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #7f8c8d; font-size: 14px; }\n  </style>\n</head>\n<body>\n  <h1>Weekly Company News Summary - Week of ${currentWeek}</h1>\n  \n  <div class=\"executive-summary\">\n    <h2>Executive Summary</h2>\n    ${executiveSummary.split('\\n').map(p => `<p>${p}</p>`).join('')}\n  </div>\n  \n  <h2>Company News Overview</h2>\n  <table>\n    <thead>\n      <tr>\n        <th style=\"width: 25%;\">Company</th>\n        <th style=\"width: 50%;\">Key Developments</th>\n        <th style=\"width: 25%;\">Links</th>\n      </tr>\n    </thead>\n    <tbody>\n      ${weekSummaries.map(summary => `\n        <tr>\n          <td><strong>${summary.Company}</strong></td>\n          <td>${summary.Summary.split('. ').slice(0, 2).join('. ')}.</td>\n          <td>${summary.Links ? `<a href=\"${summary.Links.split('\\n')[0]}\">View Details</a>` : 'No links'}</td>\n        </tr>\n      `).join('')}\n    </tbody>\n  </table>\n  \n  <a href=\"${spreadsheetUrl}\" class=\"spreadsheet-link\">View Full Report in Google Sheets</a>\n  \n  <h2>Detailed Company Reports</h2>\n  ${weekSummaries.map(summary => `\n    <div class=\"company-detail\">\n      <h3>${summary.Company}</h3>\n      <p>${summary.Summary}</p>\n      ${summary.Links ? `<p><strong>Related Links:</strong><br>${summary.Links.split('\\n').map(link => `<a href=\"${link}\">${link}</a>`).join('<br>')}</p>` : ''}\n      <p><em>Research Date: ${new Date(summary.ResearchDate).toLocaleDateString()}</em></p>\n    </div>\n  `).join('')}\n  \n  <div class=\"footer\">\n    <p>This newsletter was automatically generated based on news from the past 7 days.</p>\n    <p>For questions or to update the company list, please contact your administrator.</p>\n  </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    to: 'stew@stewchisam.com',\n    subject: `Weekly Company Newsletter - ${currentWeek}`,\n    htmlContent: htmlContent,\n    spreadsheetUrl: spreadsheetUrl,\n    weekSummaries: weekSummaries\n  }\n}];"
+      },
+      "id": "format-email",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.htmlContent }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "send-email",
+      "name": "Send Newsletter Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        600
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "jdEXWlts2y8tDswV",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Workflow Features\n\n1. **Automatic Database Creation**:\n   - Creates new Research Database for each run\n   - Named with date and week number\n   - Contains both Research and Weekly Summary sheets\n\n2. **No Manual Setup Required**:\n   - Just import and run\n   - Automatically creates all needed spreadsheets\n   - Links to Company List spreadsheet\n\n3. **Archive System**:\n   - Each run creates a separate database\n   - Easy to review historical newsletters\n   - Clean separation by week",
+        "height": 380.39215686274506,
+        "width": 323.52941176470575
+      },
+      "id": "setup-note",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        400
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create Research Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Research Database": {
+      "main": [
+        [
+          {
+            "node": "Prepare Headers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Headers": {
+      "main": [
+        [
+          {
+            "node": "Setup Research Headers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup Research Headers": {
+      "main": [
+        [
+          {
+            "node": "Read Company List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Company List": {
+      "main": [
+        [
+          {
+            "node": "Prepare Companies for Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Companies for Research": {
+      "main": [
+        [
+          {
+            "node": "Company Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Research Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Company Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Research Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Company Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Research Data": {
+      "main": [
+        [
+          {
+            "node": "Store in Research Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store in Research Database": {
+      "main": [
+        [
+          {
+            "node": "Check Research Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Research Completion": {
+      "main": [
+        [
+          {
+            "node": "Read Current Week Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Current Week Summaries": {
+      "main": [
+        [
+          {
+            "node": "Process Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Summaries": {
+      "main": [
+        [
+          {
+            "node": "Executive Summary Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge Summary Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Executive Summary Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Summary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Summary Data": {
+      "main": [
+        [
+          {
+            "node": "Combine Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary LLM": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Executive Summary Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Data": {
+      "main": [
+        [
+          {
+            "node": "Format Sheet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Sheet Data": {
+      "main": [
+        [
+          {
+            "node": "Populate Weekly Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Populate Weekly Sheet": {
+      "main": [
+        [
+          {
+            "node": "Format Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "v5.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "enhanced-newsletter-workflow-v5"
+  },
+  "id": "company-news-enhanced-v5",
+  "tags": []
+}
