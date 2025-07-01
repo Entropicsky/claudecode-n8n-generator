@@ -73,6 +73,67 @@ Effective session management is crucial for maintaining separate conversation co
 
 For multi-user applications, using database-backed memory (Postgres/Redis) allows for efficient session management across workflow executions[^42][^43].
 
+## Workflow Static Data Pattern
+
+A critical pattern for preserving data through AI Agent processing is the use of workflow static data. This pattern is essential when AI Agent nodes don't properly pass through input data, which is a common limitation in complex workflows.
+
+### The Problem
+
+AI Agent nodes often consume input data without passing it through to subsequent nodes. This creates challenges when you need to:
+- Maintain original data alongside AI-generated content
+- Process large datasets through AI agents
+- Preserve metadata for later use
+
+### The Solution: Static Data Pattern
+
+Use `$getWorkflowStaticData()` and `$setWorkflowStaticData()` to store and retrieve data across workflow executions:
+
+```javascript
+// Store data before AI Agent processing
+const companies = $input.all();
+$setWorkflowStaticData({
+  companies: companies,
+  timestamp: new Date().toISOString()
+});
+
+// Retrieve data after AI Agent processing
+const staticData = $getWorkflowStaticData();
+const originalCompanies = staticData.companies;
+```
+
+### Real-World Implementation (Company News Newsletter v7.3.3)
+
+This pattern was successfully used to handle 70+ companies through an AI summarization agent:
+
+```json
+{
+  "name": "Store Company Data",
+  "type": "n8n-nodes-base.code",
+  "parameters": {
+    "jsCode": "// Store all company data before AI processing\nconst allCompanies = $input.all();\n$setWorkflowStaticData({\n  companies: allCompanies,\n  processedAt: new Date().toISOString()\n});\n\nreturn allCompanies;"
+  }
+}
+```
+
+Then after AI processing:
+
+```json
+{
+  "name": "Merge AI Results with Original Data",
+  "type": "n8n-nodes-base.code",
+  "parameters": {
+    "jsCode": "// Retrieve original company data\nconst staticData = $getWorkflowStaticData();\nconst companies = staticData.companies;\nconst aiSummaries = $input.all();\n\n// Merge AI summaries with original data\nreturn companies.map((company, index) => ({\n  ...company.json,\n  aiSummary: aiSummaries[index]?.json?.summary || ''\n}));"
+  }
+}
+```
+
+### Best Practices
+
+1. **Store Early**: Save data immediately after retrieval, before any AI processing
+2. **Include Metadata**: Add timestamps and processing flags
+3. **Clear When Done**: Reset static data at workflow end to prevent memory issues
+4. **Handle Large Datasets**: Consider chunking for very large datasets
+
 ## Tool Integration
 
 Tools extend the AI Agent's capabilities beyond conversation, enabling it to retrieve information and take actions in external systems[^44]. As of 2025, n8n supports a diverse ecosystem of tool types that can be connected to AI Agents, making them remarkably versatile[^45][^46].
@@ -335,6 +396,56 @@ Once configured, agents may encounter runtime issues related to tool execution, 
 
 As AI Agent capabilities have evolved, several advanced patterns have emerged for building sophisticated applications[^68][^69].
 
+### Multi-Stage AI Agent Workflows
+
+Complex tasks often benefit from sequential AI agents, each specialized for a specific role. This pattern divides complex processes into manageable stages with focused responsibilities.
+
+#### Pattern: Research → Script → Action
+
+Example from HeyGen Video Automation:
+
+```json
+// Stage 1: Research Agent
+{
+  "name": "Research Agent",
+  "type": "@n8n/n8n-nodes-langchain.agent",
+  "parameters": {
+    "options": {
+      "systemMessage": "You are a research specialist. Your job is to gather comprehensive information about the given topic using available tools. Focus on facts, statistics, and key insights."
+    }
+  }
+}
+
+// Stage 2: Scriptwriting Agent
+{
+  "name": "Script Writer",
+  "type": "@n8n/n8n-nodes-langchain.agent",
+  "parameters": {
+    "options": {
+      "systemMessage": "You are a professional scriptwriter. Transform the research into an engaging video script. Include hooks, transitions, and a strong call-to-action."
+    }
+  }
+}
+
+// Stage 3: Action Agent
+{
+  "name": "Video Creation Agent",
+  "type": "@n8n/n8n-nodes-langchain.agent",
+  "parameters": {
+    "options": {
+      "systemMessage": "You are responsible for creating the video using HeyGen API. Format the script appropriately and handle the technical implementation."
+    }
+  }
+}
+```
+
+#### Best Practices for Multi-Stage Workflows
+
+1. **Clear Role Definition**: Each agent should have a single, well-defined purpose
+2. **Data Handoff**: Use structured formats for passing data between agents
+3. **Error Boundaries**: Each stage should handle its own errors gracefully
+4. **Progress Tracking**: Implement logging at each stage for debugging
+
 ### RAG Implementation
 
 Retrieval Augmented Generation (RAG) represents one of the most powerful AI Agent patterns, combining vector databases with AI reasoning[^70]. The implementation involves:
@@ -366,6 +477,49 @@ For production deployments, optimizing AI Agent performance is crucial:
 4. **Parallel Processing**: Use multiple agents for high-volume workloads
 
 Recent benchmarks suggest that carefully optimized agent workflows can achieve 3-5x performance improvements while reducing costs by 40-60%.
+
+## Data Flow Resilience Patterns
+
+Handling large datasets requires careful consideration of service limits and data flow patterns. These patterns ensure your workflows remain robust when processing significant data volumes.
+
+### Handling Service Limits
+
+#### Google Sheets 50K Character Limit
+
+When working with Google Sheets, the 50,000 character cell limit requires creative solutions:
+
+```json
+{
+  "name": "Split Large Dataset",
+  "type": "n8n-nodes-base.code",
+  "parameters": {
+    "jsCode": "// Separate metadata from data rows\nconst companies = $input.all();\nconst metadata = {\n  count: companies.length,\n  fields: Object.keys(companies[0].json),\n  processedAt: new Date().toISOString()\n};\n\n// Store metadata separately\nconst metadataRow = [JSON.stringify(metadata)];\n\n// Process companies in batches\nconst batchSize = 10;\nconst batches = [];\nfor (let i = 0; i < companies.length; i += batchSize) {\n  const batch = companies.slice(i, i + batchSize);\n  batches.push(batch.map(c => JSON.stringify(c.json)));\n}\n\nreturn {\n  metadata: metadataRow,\n  batches: batches\n};"
+  }
+}
+```
+
+### Dynamic Field Detection
+
+Robust workflows must handle varying field names across different data sources:
+
+```json
+{
+  "name": "Normalize Field Names",
+  "type": "n8n-nodes-base.code",
+  "parameters": {
+    "jsCode": "// Handle field name variations\nconst items = $input.all();\n\nconst fieldMappings = {\n  company: ['Company', 'company', 'CompanyName', 'company_name'],\n  email: ['Email', 'email', 'EmailAddress', 'email_address', 'Recipient'],\n  name: ['Name', 'name', 'FullName', 'full_name', 'ContactName']\n};\n\nfunction findField(item, fieldNames) {\n  for (const fieldName of fieldNames) {\n    if (item.json[fieldName] !== undefined) {\n      return item.json[fieldName];\n    }\n  }\n  return null;\n}\n\nreturn items.map(item => ({\n  company: findField(item, fieldMappings.company),\n  email: findField(item, fieldMappings.email),\n  name: findField(item, fieldMappings.name),\n  original: item.json\n}));"
+  }
+}
+```
+
+### Batch Processing Strategy
+
+For datasets with 70+ items, implement intelligent batching:
+
+1. **Size-Based Batching**: Process fixed number of items per batch
+2. **Time-Based Batching**: Process for fixed duration then pause
+3. **Memory-Based Batching**: Monitor memory usage and batch accordingly
+4. **API Limit Batching**: Respect rate limits with strategic pauses
 
 ## Sub-Workflows and Modular Design
 
@@ -801,6 +955,239 @@ Automated customer support with order lookup and FAQ capabilities
 
 > **💡 Pro Tip**: Always start with a simpler template and gradually add complexity. The template index includes complexity ratings to help you choose the right starting point.
 
+## Multi-Stage AI Agent Workflows
+
+Multi-stage AI Agent workflows represent a powerful pattern where specialized agents handle different phases of a complex task. This approach improves quality by allowing each agent to focus on its specific expertise.
+
+### Pattern Overview
+
+```
+Trigger → Research Agent → Scriptwriting Agent → Content Generation → Output
+         ↓                ↓                      ↓
+    (Gather Data)    (Process Data)        (Create Output)
+```
+
+### Real-World Example: HeyGen Video Automation
+
+This workflow demonstrates three specialized agents working in sequence:
+
+1. **Research Agent**: Searches Reddit for marketing insights
+2. **Scriptwriting Agent**: Creates video scripts from research
+3. **Video Creator**: Generates avatar videos from scripts
+
+```json
+{
+  "name": "Research Agent",
+  "type": "@n8n/n8n-nodes-langchain.agent",
+  "parameters": {
+    "options": {
+      "systemMessage": "Search Reddit for the keyword I give you\nFind relevant marketing insights and generate content concepts.\n\nUse the firecrawl tool for the search."
+    }
+  }
+}
+```
+
+### Best Practices for Multi-Stage Workflows
+
+1. **Clear Stage Separation**: Each agent should have a distinct purpose
+2. **Data Handoff**: Use structured output formats between stages
+3. **Progressive Enhancement**: Each stage builds on the previous
+4. **Error Boundaries**: Implement fallbacks between stages
+5. **Stage Documentation**: Use sticky notes to label each phase
+
+### Common Multi-Stage Patterns
+
+**Research → Analysis → Action**
+- Stage 1: Gather information from multiple sources
+- Stage 2: Analyze and synthesize findings
+- Stage 3: Take action based on analysis
+
+**Draft → Review → Publish**
+- Stage 1: Generate initial content
+- Stage 2: Review and refine with different criteria
+- Stage 3: Format and publish final version
+
+**Extract → Transform → Load (ETL)**
+- Stage 1: Extract data from various sources
+- Stage 2: Transform and enrich with AI
+- Stage 3: Load into destination systems
+
+## Data Flow Resilience Patterns
+
+When processing large datasets through AI agents, data resilience becomes critical. These patterns ensure data integrity and handle common limitations.
+
+### Google Sheets 50,000 Character Limit
+
+Google Sheets cells have a 50,000 character limit, which can cause issues when storing AI-generated content:
+
+**Problem**: AI summaries for multiple companies exceed cell limits
+**Solution**: Split content across multiple cells or use metadata separation
+
+```javascript
+// Check content length before writing
+const content = aiResult.summary;
+if (content.length > 45000) { // Leave buffer
+  // Split into chunks or store in separate cells
+  const chunks = content.match(/.{1,45000}/g);
+  return chunks.map((chunk, index) => ({
+    company: companyName,
+    summaryPart: index + 1,
+    content: chunk
+  }));
+}
+```
+
+### Metadata Separation Pattern
+
+Separate metadata from content to avoid data loss:
+
+```json
+{
+  "name": "Split Company Data",
+  "parameters": {
+    "jsCode": "// Separate metadata from AI content\nreturn {\n  metadata: {\n    company: $json.company,\n    weekNumber: $json.weekNumber,\n    timestamp: $json.timestamp\n  },\n  content: {\n    summary: $json.aiSummary,\n    links: $json.links\n  }\n};"
+  }
+}
+```
+
+### Batch Processing Strategies
+
+**For 70+ Company Processing**:
+1. Process in batches of 10-20 companies
+2. Store intermediate results
+3. Implement retry logic for failures
+4. Use workflow static data for state management
+
+### Dynamic Field Detection
+
+Handle field name variations across different data sources:
+
+```javascript
+// Detect company field dynamically
+const companyField = Object.keys($json).find(key => 
+  key.toLowerCase().includes('company') || 
+  key.toLowerCase().includes('organization')
+);
+
+const emailField = Object.keys($json).find(key => 
+  key.toLowerCase().includes('email') || 
+  key.toLowerCase().includes('recipient')
+);
+```
+
+## Complex Data Processing Patterns
+
+These patterns handle sophisticated data flows involving multiple data types, parallel processing, and aggregation.
+
+### Binary Data Processing
+
+Handle attachments and files through AI workflows:
+
+```json
+{
+  "name": "Process Attachments",
+  "type": "n8n-nodes-base.switch",
+  "parameters": {
+    "dataType": "string",
+    "value1": "={{ $binary.data.fileExtension }}",
+    "rules": {
+      "rules": [
+        {
+          "value2": "pdf",
+          "operation": "equal",
+          "output": 1
+        },
+        {
+          "value2": "png",
+          "operation": "equal",
+          "output": 2
+        }
+      ]
+    }
+  }
+}
+```
+
+### Parallel Processing with Switch Nodes
+
+Route different data types for specialized processing:
+
+```
+Email Input → Extract Attachments → Switch (by file type) → PDF Processor
+                                                         → Image Analyzer
+                                                         → Document Parser
+                                  → Merge Results → Send Summary
+```
+
+### Data Aggregation Patterns
+
+**Aggregate from Multiple Processing Paths**:
+
+```javascript
+// Merge results from parallel processing
+const pdfResults = $('PDF Processor').all();
+const imageResults = $('Image Analyzer').all();
+const docResults = $('Document Parser').all();
+
+return [{
+  totalProcessed: pdfResults.length + imageResults.length + docResults.length,
+  results: {
+    pdfs: pdfResults,
+    images: imageResults,
+    documents: docResults
+  },
+  summary: generateSummary([...pdfResults, ...imageResults, ...docResults])
+}];
+```
+
+### Advanced Merge Strategies
+
+**Enrichment Pattern**: Add AI-generated data to existing records
+```json
+{
+  "name": "Enrich with AI",
+  "type": "n8n-nodes-base.merge",
+  "parameters": {
+    "mode": "combine",
+    "joinMode": "enrichInput2",
+    "mergeByFields": {
+      "values": [
+        {
+          "field1": "id",
+          "field2": "recordId"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Code Node Patterns for Complex Logic
+
+**Dynamic Data Transformation**:
+```javascript
+// Handle multiple data formats dynamically
+const items = $input.all();
+
+return items.map(item => {
+  const json = item.json;
+  
+  // Normalize different field names
+  const normalized = {
+    id: json.id || json.ID || json.identifier,
+    name: json.name || json.Name || json.company || json.Company,
+    email: json.email || json.Email || json.recipient || json.Recipient,
+    data: json
+  };
+  
+  // Add processing metadata
+  normalized.processedAt = new Date().toISOString();
+  normalized.workflowRun = $execution.id;
+  
+  return { json: normalized };
+});
+```
+
 ## Latest Features (2025)
 
 n8n's AI Agent capabilities continue to evolve rapidly, with several notable recent additions:
@@ -911,6 +1298,11 @@ Write clear, actionable descriptions that help the AI understand when and how to
 - [ ] Configure appropriate memory settings
 - [ ] Test with multiple concurrent users (if applicable)
 - [ ] Add comprehensive sticky note documentation
+- [ ] Test data volume limits (Google Sheets 50k char limit)
+- [ ] Implement workflow static data pattern for large datasets
+- [ ] Test multi-stage agent handoffs
+- [ ] Validate field name detection logic
+- [ ] Test binary data processing paths
 
 ### Workflow Organization
 - [ ] Use sub-workflows for complex, reusable logic
