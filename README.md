@@ -2,45 +2,62 @@
 
 This repository contains n8n workflow templates generated using Claude Code, demonstrating how to build sophisticated automation workflows with AI assistance.
 
-## 🎯 Featured Workflow: Company News Newsletter Enhanced
+## 📁 Repository Structure
 
+```
+workflows/
+├── company-news-newsletter/
+│   ├── main/              # Latest production version
+│   ├── archive/           # Previous versions
+│   └── README.md          # Workflow documentation
+└── [future-workflows]/    # Additional workflows follow same structure
+
+docs/                      # Documentation and resources
+├── n8nagents.md          # AI Agent guidelines
+├── n8n-templates-index.md # Template reference
+└── awesome-n8n-templates/ # Template examples
+
+CLAUDE.md                  # Claude Code instructions for workflow creation
+```
+
+## 🎯 Featured Workflows
+
+### Company News Newsletter Enhanced
 An advanced n8n workflow that automatically researches company news and generates professional weekly newsletters with AI-powered summaries.
 
-### Key Features:
-- **Automated Company Research**: Uses Perplexity AI to research news for 70+ companies
-- **AI-Powered Summaries**: GPT-4o generates executive summaries and formats content
-- **Dynamic Email Recipients**: Pulls recipients from Google Sheets
-- **Bullet Point Formatting**: Clean, scannable format for easy reading
-- **Automatic Database Creation**: Each run creates its own Google Sheets archive
-- **Scalable Architecture**: Handles large company lists without hitting API limits
+**Location**: `workflows/company-news-newsletter/`
 
-### Version History:
-- **v7.3.3** - Production-ready version with all fixes:
-  - Handles 70+ companies without Google Sheets limits
-  - Dynamic recipient detection
-  - Clean email formatting without repetitive overviews
-  - Unique timestamps for each run
-  
-### Prerequisites:
+**Key Features**:
+- Automated research for 70+ companies using Perplexity AI
+- AI-powered executive summaries with GPT-4o
+- Dynamic email recipients from Google Sheets
+- Clean bullet-point formatting
+- Automatic database creation per run
+- Production-tested and scalable
+
+**Latest Version**: v7.3.3 (see `main/` folder)
+
+## 🚀 Getting Started
+
+1. **Browse workflows** in the `workflows/` directory
+2. **Use files from `main/`** folders for production
+3. **Check `archive/`** folders to understand development history
+4. **Follow setup guides** included with each workflow
+
+## 📋 Workflow Development Standards
+
+All workflows in this repository follow consistent organization:
+- **main/**: Latest stable version ready for production
+- **archive/**: Previous versions showing evolution
+- **README.md**: Workflow-specific documentation
+- **Semantic versioning**: Clear version progression
+
+## 🛠️ Prerequisites
+
+Common requirements across workflows:
 - n8n instance (cloud or self-hosted)
-- Google Sheets OAuth2 credentials
-- Gmail OAuth2 credentials
-- OpenAI API key (GPT-4o)
-- Perplexity API key (sonar-pro model)
-
-### Setup:
-1. Import the latest workflow JSON into n8n
-2. Configure your Google Sheet with:
-   - **List** sheet: Company names
-   - **Recipients** sheet: Email addresses
-3. Update the sheet ID in the workflow nodes
-4. Run manually or schedule weekly
-
-## 📁 Repository Structure:
-- `Company_News_Newsletter_Enhanced_v*.json` - Workflow versions
-- `*_Setup.md` - Setup guides for each version
-- `docs/` - Additional documentation and resources
-- `CLAUDE.md` - Project-specific Claude Code instructions
+- API credentials as specified in each workflow
+- Basic understanding of n8n node configuration
 
 ## 🤖 About Claude Code Generation:
 These workflows were created through iterative development with Claude Code, demonstrating:

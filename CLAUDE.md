@@ -40,6 +40,41 @@ In the future, we will get more sophisticated and use a self-hosted implementati
 - [ ] Study credential configuration patterns
 - [ ] Review API usage patterns and error handling
 
+## 📁 Workflow Organization Standards
+
+### Folder Structure Requirements
+When creating any n8n workflow, ALWAYS organize files using this structure:
+
+```
+workflows/
+├── workflow-name/
+│   ├── main/
+│   │   ├── WorkflowName_vX.X.X.json      (latest production version)
+│   │   └── WorkflowName_vX.X.X_Setup.md  (setup guide for latest)
+│   ├── archive/
+│   │   ├── WorkflowName_v1.0.json        (older versions)
+│   │   ├── WorkflowName_v1.0_Setup.md
+│   │   └── ... (all previous versions)
+│   └── README.md                          (workflow overview)
+```
+
+### Naming Conventions
+- **Workflow folders**: Use kebab-case (e.g., `company-news-newsletter`, `customer-support-bot`)
+- **JSON files**: Use PascalCase with version (e.g., `CompanyNewsNewsletter_v1.0.0.json`)
+- **Setup files**: Match JSON name with `_Setup.md` suffix
+- **Versions**: Use semantic versioning (vMAJOR.MINOR.PATCH)
+
+### Version Management
+- **main/**: Contains ONLY the latest stable version
+- **archive/**: Contains ALL previous versions in chronological order
+- **README.md**: Document version history and key improvements
+
+### Creating New Workflows
+1. Create the folder structure: `workflows/[workflow-name]/main/` and `workflows/[workflow-name]/archive/`
+2. Place the first version in `main/`
+3. When updating, move the old version from `main/` to `archive/` before adding the new one
+4. Always create a workflow-specific README.md
+
 ## 🚀 Step-by-Step Workflow Creation Process
 
 ### Step 1: Documentation Deep Dive
