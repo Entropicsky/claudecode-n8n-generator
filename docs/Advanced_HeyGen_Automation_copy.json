@@ -1,0 +1,340 @@
+{
+  "name": "Advanced HeyGen Automation copy",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.heygen.com/v2/video/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"video_inputs\": [\n    {\n      \"character\": {\n        \"type\": \"avatar\",\n        \"avatar_id\": \"b0e565b0070e4fbfb06727bab125a577\",\n        \"avatar_style\": \"normal\"\n      },\n      \"voice\": {\n        \"type\": \"text\",\n        \"input_text\": \"{{ $json.output }}\",\n        \"voice_id\": \"ff15136c2a7f4d8290c5f685901b3c83\",\n        \"speed\": 1.1\n      }\n    }\n  ],\n  \"dimension\": {\n    \"width\": 1280,\n    \"height\": 720\n  }\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -800,
+        500
+      ],
+      "id": "c9039e8e-acf1-48ad-b365-29df084d483c",
+      "name": "Video Creator",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wjC4ty2HWijSMVV0",
+          "name": "HeyGen"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.heygen.com/v1/video_status.get",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "video_id",
+              "value": "={{ $json.data.video_id }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -600,
+        500
+      ],
+      "id": "66338785-2cd4-48a6-813d-6143e311c3ea",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "wjC4ty2HWijSMVV0",
+          "name": "HeyGen"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Use this tool to search the internet",
+        "method": "POST",
+        "url": "https://api.firecrawl.dev/v1/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.chatInput }} site:www.reddit.com\",\n  \"limit\": 5\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        -300,
+        40
+      ],
+      "id": "34c36b5d-f6a5-44d6-a7e4-5d6f21c0e322",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "tDcRb3x3zqVJHm1v",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -420,
+        -60
+      ],
+      "id": "81e14be6-640c-48bb-9d0e-0f5b0375bea0",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "HDfmiZDKbWWGL2XM",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -820,
+        60
+      ],
+      "id": "930e8d40-1e25-4381-8106-9eaf4bcff09f",
+      "name": "When chat message received",
+      "webhookId": "ae342541-1918-402b-98e7-9776619e0443"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Search Reddit for the keyword I give you\nSearch useful posts finding relevant marketing insights and generate content concepts that once approved would get written into short or long form blogs based on this keyword/reddit responses.\n\nUse the firecrawl tool for the search.\n\nFrom there, generate a short fun script for my avatar video. Should be max 50 words."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -660,
+        60
+      ],
+      "id": "35f6084e-df9e-437a-8445-e4acf4e30727",
+      "name": "Research Agent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Based on the research here:\n\n{{ $json.output }}\n\nWrite a short fun script for my youtube video as Julian Goldie about the latest AI News. Must be just the text to read out, nothing else.",
+        "options": {
+          "systemMessage": "You are a helpful scriptwriting assistant\nOnly the next, no quote marks or anything else. Literally just the text. No formatting on the text or paragraphs etc."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        -800,
+        280
+      ],
+      "id": "e7a50670-13ff-44ae-a268-3955b83556ca",
+      "name": "Scriptwriting AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -400,
+        300
+      ],
+      "id": "ddfe864e-1b78-4565-897a-8604e483446c",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "HDfmiZDKbWWGL2XM",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# Stage 1: Research",
+        "height": 100,
+        "width": 180,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1060,
+        60
+      ],
+      "id": "027bb680-0585-4e0a-9c30-cffb81cd45c8",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# Stage 2:\nScript Writer",
+        "height": 100,
+        "width": 180,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1060,
+        280
+      ],
+      "id": "dae78a4c-a866-49a7-b440-4718a5421320",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "# Stage 3:\nGenerate Avatar Videos",
+        "height": 100,
+        "width": 180,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1060,
+        480
+      ],
+      "id": "9e5149fb-25a3-4065-b9c5-07d3775f1404",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Video Creator": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "ai_tool": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Scriptwriting AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scriptwriting AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Video Creator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Scriptwriting AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "60c15c3a-3767-417c-8ee5-e756ed26bd97",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e299a1c9534d3df40876524706c82a0adb5dc6203538ef644e25b7d869a117f"
+  },
+  "id": "CvLH5uGKi8dBOiu6",
+  "tags": []
+}

@@ -1,0 +1,480 @@
+{
+  "name": "Supplier Part Research Agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "id": "read-supplier-sheet",
+      "name": "Read Supplier Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "googleSheetsCredential",
+          "name": "Google Sheets account"
+        }
+      },
+      "notes": "Reads the supplier sheet with columns: Supplier Name, Part Number, Description"
+    },
+    {
+      "parameters": {
+        "content": "## Supplier Part Research Workflow\n\n### Configuration Required:\n1. Set Google Sheet ID in 'Read Supplier Sheet' node\n2. Configure Perplexity credentials\n3. Set up Slack webhook for alerts\n4. Configure output Google Sheet location\n\n### Workflow Process:\n1. Reads supplier parts from Google Sheet\n2. Processes in batches of 10 for API rate limits\n3. Performs deep research via Perplexity\n4. Analyzes sentiment (0-10 scale)\n5. Creates new output sheet with results\n6. Sends Slack alerts for parts rated ≤4",
+        "height": 360,
+        "width": 442,
+        "color": 7
+      },
+      "id": "workflow-overview",
+      "name": "Workflow Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [160, 60]
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "batch-processor",
+      "name": "Process in Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a deep research specialist analyzing product feedback and reviews. For the given supplier part, conduct comprehensive research across all available sources.\n\nResearch Instructions:\n1. Search deeply across Reddit, AV-specific forums (AVSForum, AVForums), retailer reviews (Amazon, B&H, Crutchfield), tech news sites, social media, and industry publications\n2. Focus on feedback from the last 90 days\n3. Look for patterns in customer complaints, dealer feedback, influencer opinions, and technical reviews\n4. Pay special attention to keywords like 'defective', 'broken', 'excellent', 'warranty', 'recall', 'issue', 'problem', 'love', 'recommend'\n5. Note any significant changes, updates, or news about the product\n\nReturn a comprehensive research report including:\n- Summary of findings\n- Key positive feedback\n- Key negative feedback\n- Notable changes or news\n- Overall sentiment assessment\n- Sources consulted\n\nBe thorough and specific with examples and quotes where relevant."
+        }
+      },
+      "id": "research-agent",
+      "name": "Perplexity Research Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-sonar-large-128k-online",
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 2000
+        }
+      },
+      "id": "perplexity-model",
+      "name": "Perplexity Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatPerplexity",
+      "typeVersion": 1,
+      "position": [850, 480],
+      "credentials": {
+        "perplexityApi": {
+          "id": "perplexityCredential",
+          "name": "Perplexity account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "research_product",
+        "description": "Research a specific supplier part for customer feedback, reviews, and sentiment",
+        "workflowId": "={{ $workflow.id }}",
+        "fields": {
+          "values": [
+            {
+              "name": "supplier",
+              "type": "string",
+              "description": "The supplier/manufacturer name",
+              "value": "={{ $fromAI('supplier', 'The supplier name to research') }}"
+            },
+            {
+              "name": "partNumber",
+              "type": "string", 
+              "description": "The part number to research",
+              "value": "={{ $fromAI('partNumber', 'The part number to research') }}"
+            },
+            {
+              "name": "description",
+              "type": "string",
+              "description": "The part description",
+              "value": "={{ $fromAI('description', 'The part description') }}"
+            }
+          ]
+        }
+      },
+      "id": "research-tool",
+      "name": "Research Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 1.1,
+      "position": [850, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process each part in the batch\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const part = item.json;\n  \n  // Prepare research query\n  const researchQuery = `Research the following product for customer feedback and reviews from the last 90 days:\n\nSupplier: ${part['Supplier Name']}\nPart Number: ${part['Part Number']}\nDescription: ${part['Description']}\n\nFocus on customer reviews, dealer feedback, technical reviews, and any recent news or changes.`;\n  \n  results.push({\n    json: {\n      supplier: part['Supplier Name'],\n      partNumber: part['Part Number'],\n      description: part['Description'],\n      researchQuery: researchQuery,\n      originalData: part\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "prepare-research",
+      "name": "Prepare Research Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "mode": "passThrough",
+        "output": "input2"
+      },
+      "id": "merge-research",
+      "name": "Merge Research Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a sentiment analysis expert. Based on the research report provided, calculate a sentiment score from 0-10 using this rubric:\n\nSCORING RUBRIC:\n- 9-10: Overwhelmingly positive feedback, minimal to no complaints, highly recommended\n- 7-8: Mostly positive with minor issues, good value, recommended\n- 5-6: Mixed feedback, some notable issues but also positives\n- 3-4: Significant problems reported, frequent complaints, questionable quality\n- 0-2: Major issues, high failure rates, recalls, or widespread dissatisfaction\n\nWEIGHTING FACTORS (in order of importance):\n1. Customer complaint frequency (40%)\n2. Verified purchase reviews (30%)\n3. Technical/professional reviews (20%)\n4. General comments/social media (10%)\n\nProvide:\n1. Sentiment Score (0-10)\n2. Brief justification for the score\n3. Key issues identified (if any)\n4. Summary of findings (2-3 sentences)"
+        }
+      },
+      "id": "sentiment-analyzer",
+      "name": "Sentiment Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "id": "openai-sentiment",
+      "name": "OpenAI Sentiment Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.9,
+      "position": [1450, 480],
+      "credentials": {
+        "openAiApi": {
+          "id": "openAiCredential",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract and format results\nconst items = $input.all();\nconst formattedResults = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  // Parse sentiment analysis response\n  const sentimentResponse = data.sentimentAnalysis || '';\n  \n  // Extract score (look for number 0-10)\n  const scoreMatch = sentimentResponse.match(/Score:\\s*(\\d+(?:\\.\\d+)?)/i) || \n                     sentimentResponse.match(/(\\d+(?:\\.\\d+)?)\\s*\\/\\s*10/i) ||\n                     sentimentResponse.match(/(\\d+(?:\\.\\d+)?)/i);\n  \n  const score = scoreMatch ? parseFloat(scoreMatch[1]) : 5;\n  \n  // Extract summary and issues\n  const summaryMatch = sentimentResponse.match(/Summary:(.+?)(?:Key Issues:|$)/si);\n  const issuesMatch = sentimentResponse.match(/Key Issues:(.+?)(?:Summary:|$)/si);\n  \n  const summary = summaryMatch ? summaryMatch[1].trim() : sentimentResponse.substring(0, 200);\n  const keyIssues = issuesMatch ? issuesMatch[1].trim() : 'None identified';\n  \n  formattedResults.push({\n    json: {\n      'Part Number': data.originalData.partNumber,\n      'Supplier': data.originalData.supplier,\n      'Description': data.originalData.description,\n      'Sentiment Score': score,\n      'Summary': summary,\n      'Key Issues': keyIssues,\n      'Sources': 'Perplexity AI comprehensive search',\n      'Research Date': new Date().toISOString().split('T')[0],\n      'Full Research': data.researchReport\n    }\n  });\n}\n\nreturn formattedResults;"
+      },
+      "id": "format-results",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "sheetName": "=Research Results {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "write-results",
+      "name": "Write Results Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [1850, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "googleSheetsCredential",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "sentiment-check",
+              "leftValue": "={{ $json['Sentiment Score'] }}",
+              "rightValue": 4,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-alerts",
+      "name": "Check for Alerts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Slack alert message\nconst items = $input.all();\nconst alerts = [];\n\nfor (const item of items) {\n  const data = item.json;\n  \n  const alertMessage = {\n    text: `⚠️ Low Sentiment Alert for ${data.Supplier} - ${data['Part Number']}`,\n    blocks: [\n      {\n        type: 'header',\n        text: {\n          type: 'plain_text',\n          text: '⚠️ Product Quality Alert'\n        }\n      },\n      {\n        type: 'section',\n        fields: [\n          {\n            type: 'mrkdwn',\n            text: `*Supplier:* ${data.Supplier}`\n          },\n          {\n            type: 'mrkdwn',\n            text: `*Part Number:* ${data['Part Number']}`\n          },\n          {\n            type: 'mrkdwn',\n            text: `*Sentiment Score:* ${data['Sentiment Score']}/10`\n          },\n          {\n            type: 'mrkdwn',\n            text: `*Description:* ${data.Description}`\n          }\n        ]\n      },\n      {\n        type: 'section',\n        text: {\n          type: 'mrkdwn',\n          text: `*Summary:* ${data.Summary}`\n        }\n      },\n      {\n        type: 'section',\n        text: {\n          type: 'mrkdwn',\n          text: `*Key Issues:* ${data['Key Issues']}`\n        }\n      }\n    ]\n  };\n  \n  alerts.push({ json: alertMessage });\n}\n\nreturn alerts;"
+      },
+      "id": "prepare-slack-alert",
+      "name": "Prepare Slack Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "webhookUrl": "={{ $credentials.webhookUrl }}"
+      },
+      "id": "send-slack-alert",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [2450, 200],
+      "credentials": {
+        "slackWebhookUrl": {
+          "id": "slackWebhookCredential",
+          "name": "Slack Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "done-batching",
+      "name": "All Batches Complete",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {
+        "content": "## Sentiment Scoring Rubric\n\n**9-10:** Overwhelmingly positive\n**7-8:** Mostly positive, minor issues\n**5-6:** Mixed feedback\n**3-4:** Significant problems\n**0-2:** Major issues/recalls\n\n**Weighting:**\n- Complaints: 40%\n- Verified reviews: 30%\n- Technical reviews: 20%\n- Social media: 10%",
+        "height": 280,
+        "width": 300,
+        "color": 5
+      },
+      "id": "rubric-note",
+      "name": "Sentiment Rubric",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [1380, 60]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Supplier Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Supplier Sheet": {
+      "main": [
+        [
+          {
+            "node": "Process in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process in Batches": {
+      "main": [
+        [
+          {
+            "node": "Prepare Research Queries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All Batches Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Research Queries": {
+      "main": [
+        [
+          {
+            "node": "Perplexity Research Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity Research Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Research Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Perplexity Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Perplexity Research Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Perplexity Research Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Research Results": {
+      "main": [
+        [
+          {
+            "node": "Sentiment Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sentiment Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Sentiment Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sentiment Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Write Results Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check for Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Results Sheet": {
+      "main": [
+        [
+          {
+            "node": "Process in Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Alerts": {
+      "main": [
+        [
+          {
+            "node": "Prepare Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    "research",
+    "sentiment-analysis",
+    "supplier-management"
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-01-02T00:00:00.000Z",
+  "versionId": "supplier-research-v1"
+}
